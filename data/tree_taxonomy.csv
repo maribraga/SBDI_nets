@@ -1,0 +1,119 @@
+﻿Scientific name,Swedish name,Family,Taxonomic rank
+Pinopsida,barrväxter,,Class
+Pinaceae,tallväxter,Pinaceae,Family
+Abies,ädelgranar,Pinaceae,Genus
+Abies alba,silvergran,Pinaceae,Species
+Abies nordmanniana,nordmannsgran,Pinaceae,Species
+Larix,lärkar,Pinaceae,Genus
+Larix decidua,lärk,Pinaceae,Species
+Larix sibirica,sibirisk lärk,Pinaceae,Species
+Picea,granar,Pinaceae,Genus
+Picea abies,gran,Pinaceae,Species
+Picea abies subsp. abies,vanlig gran,Pinaceae,Subspecies
+Picea glauca,vitgran,Pinaceae,Species
+Picea orientalis,orientgran,Pinaceae,Species
+Pinus,tallar,Pinaceae,Genus
+Pinus cembra,cembratall,Pinaceae,Species
+Pinus cembra subsp. sibirica,sibirisk cembratall,Pinaceae,Subspecies
+Pinus contorta,contortatall,Pinaceae,Species
+Pinus mugo,bergtall,Pinaceae,Species
+Pinus nigra,svarttall,Pinaceae,Species
+Pinus strobus,weymouthtall,Pinaceae,Species
+Pinus sylvestris,tall,Pinaceae,Species
+Pinus sylvestris var. sylvestris,vanlig tall,Pinaceae,Variety
+Pseudotsuga menziesii,douglasgran,Pinaceae,Species
+Cupressaceae,cypressväxter,Cupressaceae,Family
+Chamaecyparis,ädelcypresser,Cupressaceae,Genus
+Chamaecyparis lawsoniana,ädelcypress,Cupressaceae,Species
+Cupressus,cypresser,Cupressaceae,Genus
+Juniperus,enar,Cupressaceae,Genus
+Juniperus chinensis,kinesisk en,Cupressaceae,Species
+Juniperus communis,en,Cupressaceae,Species
+Juniperus communis var. communis,vanlig en,Cupressaceae,Variety
+Juniperus virginiana,blyerts-en,Cupressaceae,Species
+Thuja,tujor,Cupressaceae,Genus
+Thuja occidentalis,tuja,Cupressaceae,Species
+Taxus baccata,idegran,Taxaceae,Species
+Magnoliaceae,magnoliaväxter,Magnoliaceae,Family
+Platanus,plataner,Platanaceae,Genus
+Laburnum,gullregn,Fabaceae,Genus
+Robinia pseudoacacia,robinia,Fabaceae,Species
+Crataegus,hagtornar,Rosaceae,Genus
+Crataegus laevigata,rundhagtorn,Rosaceae,Species
+Malus,aplar,Rosaceae,Genus
+Malus domestica,apel,Rosaceae,Species
+Malus sylvestris,vildapel,Rosaceae,Species
+Prunus,prunusar,Rosaceae,Genus
+Prunus avium,sötkörsbär,Rosaceae,Species
+Prunus cerasifera,körsbärsplommon,Rosaceae,Species
+Prunus cerasus,surkörsbär,Rosaceae,Species
+Prunus domestica,krikon/plommon,Rosaceae,Species
+Prunus mahaleb,vejksel,Rosaceae,Species
+Prunus padus,hägg,Rosaceae,Species
+Prunus padus subsp. padus,vanlig hägg,Rosaceae,Subspecies
+Prunus persica,persika,Rosaceae,Species
+Prunus serrulata,japanskt prydnadskörsbär,Rosaceae,Species
+Pyrus,päronsläktet,Rosaceae,Genus
+Pyrus communis,päron,Rosaceae,Species
+Sorbus,oxlar,Rosaceae,Genus
+Sorbus aucuparia,rönn,Rosaceae,Species
+Sorbus intermedia,oxel,Rosaceae,Species
+Sorbus torminalis,tyskoxel,Rosaceae,Species
+Elaeagnus,silverbuskar,Elaeagnaceae,Genus
+Elaeagnus angustifolia,smalbladig silverbuske,Elaeagnaceae,Species
+Hippophaë rhamnoides,havtorn,Elaeagnaceae,Species
+Rhamnus cathartica,getapel,Rhamnaceae,Species
+Ulmus,almar,Ulmaceae,Genus
+Ulmus glabra,skogsalm,Ulmaceae,Species
+Ulmus laevis,vresalm,Ulmaceae,Species
+Ulmus minor,lundalm,Ulmaceae,Species
+Fagales,bokordningen,,Order
+Castanea sativa,äkta kastanj,Fagaceae,Species
+Fagus,bokar,Fagaceae,Genus
+Fagus sylvatica,bok,Fagaceae,Species
+Quercus,ekar,Fagaceae,Genus
+Quercus petraea,bergek,Fagaceae,Species
+Quercus robur,skogsek,Fagaceae,Species
+Juglans regia,valnöt,Juglandaceae,Species
+Betulaceae,björkväxter,Betulaceae,Family
+Alnus,alar,Betulaceae,Genus
+Alnus glutinosa,klibbal,Betulaceae,Species
+Alnus incana,gråal,Betulaceae,Species
+Betula,björkar,Betulaceae,Genus
+Betula pendula,vårtbjörk,Betulaceae,Species
+Betula pubescens,glasbjörk,Betulaceae,Species
+Betula pubescens subsp. czerepanovii,fjällbjörk,Betulaceae,Subspecies
+Carpinus,avenbokar,Betulaceae,Genus
+Carpinus betulus,avenbok,Betulaceae,Species
+Corylus,hasslar,Betulaceae,Genus
+Euonymus europaeus,benved,Celastraceae,Species
+Salicaceae,videväxter,Salicaceae,Family
+Populus,popplar,Salicaceae,Genus
+Populus alba,silverpoppel,Salicaceae,Species
+Populus balsamifera,balsampoppel,Salicaceae,Species
+Populus nigra,svartpoppel,Salicaceae,Species
+Populus tremula,asp,Salicaceae,Species
+Salix,viden,Salicaceae,Genus
+Salix alba,vitpil,Salicaceae,Species
+Salix caprea,sälg,Salicaceae,Species
+Salix caprea subsp. caprea,vanlig sälg,Salicaceae,Subspecies
+Salix euxina,knäckepil,Salicaceae,Species
+Salix × fragilis,grönpil,Salicaceae,Species
+Salix fragilis agg.,knäckepil (aggregat),Salicaceae,Species complex
+Salix pentandra,jolster,Salicaceae,Species
+Salix triandra,mandelpil,Salicaceae,Species
+Acer,lönnar,Sapindaceae,Genus
+Acer campestre,naverlönn,Sapindaceae,Species
+Acer platanoides,skogslönn,Sapindaceae,Species
+Acer pseudoplatanus,tysklönn,Sapindaceae,Species
+Acer tataricum,tatarlönn,Sapindaceae,Species
+Aesculus hippocastanum,hästkastanj,Sapindaceae,Species
+Tilia,lindar,Malvaceae,Genus
+Tilia cordata,skogslind,Malvaceae,Species
+Tilia platyphyllos,bohuslind,Malvaceae,Species
+Tilia tomentosa,silverlind,Malvaceae,Species
+Fraxinus,askar,Oleaceae,Genus
+Fraxinus excelsior,ask,Oleaceae,Species
+Syringa,syrener,Oleaceae,Genus
+Sambucus nigra,fläder,Adoxaceae,Species
+Viburnum,olvonsläktet,Adoxaceae,Genus
