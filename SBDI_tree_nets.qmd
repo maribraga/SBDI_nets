@@ -1,0 +1,225 @@
+---
+title: "SBDI_tree_nets"
+author: "Mariana Braga"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+execute:
+  warning: false
+---
+
+
+```{r}
+#| label: "packages"
+ 
+library(tidyverse)
+library(bipartite)
+library(tidygraph)
+library(ggraph)
+```
+
+Read data and count entries by interaction type
+
+```{r}
+#| label: "read data"
+
+raw_data <- read.table("data/report_data.txt", sep = "\t", header = T, fileEncoding = "ISO-8859-1")
+
+# check for duplicates
+nrow(raw_data) > n_distinct(raw_data[,c("Scientificname", "VärdSciName", "Nyttjande")])
+````
+
+There are duplicates in the data (seems to be for different parts of the tree). Remove them from data subsets later.
+
+```{r}
+# number of tree host species
+n_distinct(raw_data$VärdCommon)
+# number of attackers
+n_distinct(raw_data$Commonname)
+
+# taxonomic data from the report's appendix 2
+tree_taxo <- read.csv("data/tree_taxonomy.csv")
+
+# number of trees
+n_distinct(tree_taxo$Scientific.name)
+
+data_trees <- filter(raw_data, VärdSciName %in% tree_taxo$Scientific.name)
+
+# number of attackers by type of interaction 
+table(data_trees$Nyttjande) %>% sort()
+```
+
+##Parasites
+
+```{r}
+data_parasitism <- filter(data_trees, Nyttjande == "Parasitism") %>% 
+  select("Scientificname", "VärdSciName", "tal1") %>% 
+  rename("parasite" = "Scientificname",
+         "host" = "VärdSciName", 
+         "weight" = "tal1")
+
+n_distinct(data_parasitism$parasite)
+n_distinct(data_parasitism$host)
+nrow(data_parasitism)
+n_distinct(data_parasitism)
+
+data_parasitism %>% 
+  group_by(parasite, host, weight) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1) %>% 
+  nrow()
+
+data_parasitism %>% 
+  group_by(parasite, host) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1) %>% 
+  nrow()
+
+raw_data %>% 
+  filter(Scientificname == "Biorhiza pallida")
+
+raw_data %>% 
+  filter(Scientificname == "Andricus quercuscorticis")
+
+data_parasitism <- unique(data_parasitism)
+
+duplicates_para <- data_parasitism %>% 
+  group_by(parasite, host) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1)
+
+# this interaction is recorded as both 1 and 2
+raw_data %>% 
+  filter(Scientificname == "Gymnosporangium clavariiforme")
+
+data_parasitism <- data_parasitism[-which(data_parasitism$parasite == duplicates_para$parasite &
+                                         data_parasitism$host == duplicates_para$host &
+                                         data_parasitism$weight == 1),]
+```
+
+# Plot network
+```{r}
+# with ggraph
+
+nodes_para <- data.frame(name = c(unique(data_parasitism$parasite), unique(data_parasitism$host)),
+                         type = c(rep("parasite",n_distinct(data_parasitism$parasite)), 
+                                  rep("host",n_distinct(data_parasitism$host))))
+
+parasit_graph <- tbl_graph(nodes = nodes_para, edges = data_parasitism)
+
+ggraph(parasit_graph, layout = "kk") + 
+  geom_edge_link(aes(edge_width = weight), color = "grey30", alpha = 0.8) + 
+  geom_node_point(aes(shape = type, color = type), size = 3) +
+  scale_color_manual(values = c("chartreuse3","deepskyblue3")) +
+  scale_edge_width(range = c(0.7,1.4))
+```
+
+```{r}
+# with bipartite
+
+adjm_parasitism <- frame2webs(mutate(data_parasitism, webID = 1), varnames = c("host","parasite", "webID", "weight"))[[1]]
+
+plotweb(adjm_parasitism, text.rot = 90, y.lim = c(0, 2))
+visweb(adjm_parasitism, prednames = F, preynames = F)
+```
+
+```{r}
+#| eval: false
+# modularity
+mod_para <- computeModules(adjm_parasitism)
+plotModuleWeb(mod_para)
+```
+
+
+## Herbivores
+
+```{r}
+data_herbivory <- filter(data_trees, Nyttjande == "Föda") %>% 
+  select("Scientificname", "VärdSciName", "tal1") %>% 
+  rename("herbivore" = "Scientificname",
+         "host" = "VärdSciName", 
+         "weight" = "tal1")
+
+n_distinct(data_herbivory$herbivore)
+n_distinct(data_herbivory$host)
+nrow(data_herbivory)
+n_distinct(data_herbivory)
+
+duplicates_herb <- data_herbivory %>% 
+  group_by(herbivore, host, weight) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1)
+
+nrow(duplicates_herb)
+
+raw_data %>% 
+  filter(Scientificname == "Aleurocystidiellum disciforme",
+         Nyttjande == "Föda")
+
+raw_data %>% 
+  filter(Scientificname == "Caloptilia cuculipennella",
+         Nyttjande == "Föda")
+
+data_herbivory <- unique(data_herbivory)
+
+duplicates_herb <- data_herbivory %>% 
+  group_by(herbivore, host) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1)
+
+View(duplicates_herb)
+
+data_herbivory <- data_herbivory[-which(data_herbivory$herbivore == duplicates_herb$herbivore &
+                                        data_herbivory$host == duplicates_herb$host &
+                                        data_herbivory$weight == 1),]
+
+to_remove <- c()
+for(i in 1:nrow(duplicates_herb)) {
+  row <- which(data_herbivory$herbivore == duplicates_herb$herbivore[i] &
+                              data_herbivory$host == duplicates_herb$host[i] &
+                              data_herbivory$weight == 1)
+  to_remove <- c(to_remove, row)
+}
+
+data_herbivory <- data_herbivory[-to_remove,]
+nrow(data_herbivory) == n_distinct(data_herbivory)
+```
+
+	
+# Plot network
+```{r}
+# with ggraph
+
+nodes_herb <- data.frame(name = c(unique(data_herbivory$herbivore), unique(data_herbivory$host)),
+                         type = c(rep("herbivore",n_distinct(data_herbivory$herbivore)), 
+                                  rep("host",n_distinct(data_herbivory$host))))
+
+herb_graph <- tbl_graph(nodes = nodes_herb, edges = data_herbivory)
+
+ggraph(herb_graph, layout = "kk") + 
+  geom_edge_link(aes(edge_width = weight), color = "grey30", alpha = 0.8) + 
+  geom_node_point(aes(shape = type, color = type), size = 2) +
+  scale_color_manual(values = c("deepskyblue3","chartreuse3")) +
+  scale_edge_width(range = c(0.5,1))
+```
+
+```{r}
+# with bipartite
+
+adjm_herb <- frame2webs(mutate(data_herbivory, webID = 1), varnames = c("host","herbivore", "webID", "weight"))[[1]]
+
+plotweb(adjm_herb, text.rot = 90, y.lim = c(0, 2), labsize = 0.7)
+
+#visweb(adjm_herb, prednames = F, preynames = F)
+```
+
+```{r}
+#| eval: false
+# modularity
+mod_herb <- computeModules(adjm_herb)
+plotModuleWeb(mod_herb, displayBlabels = F, labsize = 0.4)
+```
+
+
+

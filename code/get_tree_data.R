@@ -16,7 +16,7 @@ data_trees <- filter(raw_data, VärdSciName %in% tree_taxo$Scientific.name)
 table(data_trees$Nyttjande) %>% sort()
 
 filter(data_trees, Nyttjande == "NULL") %>% View()
-filter(data_trees, Nyttjande == "Livsrum") %>% View()
+filter(data_trees, Nyttjande == "Livsrum") %>% View()  # mainly Coleoptera
 filter(data_trees, Nyttjande == "Parasitism") %>% View()
 
 data_parasitism <- filter(data_trees, Nyttjande == "Parasitism") %>% 
