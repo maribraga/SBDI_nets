@@ -101,194 +101,587 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </header>
 
+<p>Exploring the interaction data from Artdatabankens report on species interactions with focus on trees.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bipartite)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidygraph)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggraph)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Read data and count entries by interaction type</p>
+<p>Read interaction and taxonomic data.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>raw_data <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">"data/report_data.txt"</span>, <span class="at">sep =</span> <span class="st">"</span><span class="sc">\t</span><span class="st">"</span>, <span class="at">header =</span> T, <span class="at">fileEncoding =</span> <span class="st">"ISO-8859-1"</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># check for duplicates</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(raw_data) <span class="sc">&gt;</span> <span class="fu">n_distinct</span>(raw_data[,<span class="fu">c</span>(<span class="st">"Scientificname"</span>, <span class="st">"VärdSciName"</span>, <span class="st">"Nyttjande"</span>)])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] TRUE</code></pre>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># interaction data (fix names that start with space)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>raw_data <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">"data/report_data.txt"</span>, <span class="at">sep =</span> <span class="st">"</span><span class="sc">\t</span><span class="st">"</span>, <span class="at">header =</span> T, <span class="at">fileEncoding =</span> <span class="st">"ISO-8859-1"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Scientificname =</span> <span class="fu">str_replace</span>(Scientificname,<span class="st">"^ "</span>,<span class="st">""</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>         VärdSciName <span class="ot">=</span> <span class="fu">str_replace</span>(VärdSciName, <span class="st">"ë"</span>, <span class="st">"e"</span>))</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># tree taxonomic data from the report's appendix 2</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>tree_taxo <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"data/tree_taxonomy.csv"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Taxonomic.rank <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Genus"</span>, <span class="st">"Species"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">Species =</span> <span class="st">"Scientific.name"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Species =</span> <span class="fu">str_replace</span>(Species, <span class="st">"ë"</span>, <span class="st">"e"</span>),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>         <span class="at">Genus =</span> <span class="fu">str_extract</span>(Species,  <span class="st">"^</span><span class="sc">\\</span><span class="st">w+"</span>), <span class="at">.after =</span> Species)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>tree_spp <span class="ot">&lt;-</span> tree_taxo <span class="sc">%&gt;%</span> </span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Taxonomic.rank <span class="sc">==</span> <span class="st">"Species"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(Species) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sort</span>()</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>tree_genera <span class="ot">&lt;-</span> tree_taxo <span class="sc">%&gt;%</span> </span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(Genus) <span class="sc">%&gt;%</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sort</span>()</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="co"># attacker taxonomic data </span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>attacker_taxo <span class="ot">&lt;-</span> raw_data <span class="sc">%&gt;%</span> </span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="st">"Scientificname"</span>,<span class="st">"Family"</span>, <span class="st">"OrganismGroup"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">Species =</span> <span class="st">"Scientificname"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Genus =</span> <span class="fu">str_extract</span>(Species,  <span class="st">"^</span><span class="sc">\\</span><span class="st">w+"</span>), <span class="at">.after =</span> Species)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-</div>
-<p>There are duplicates in the data (seems to be for different parts of the tree). Remove them from data subsets later.</p>
+<section id="interactions-with-trees" class="level1">
+<h1>Interactions with trees</h1>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># number of tree host species</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(raw_data<span class="sc">$</span>VärdCommon)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 2339</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># number of attackers</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(raw_data<span class="sc">$</span>Commonname)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 8731</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># taxonomic data from the report's appendix 2</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>tree_taxo <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"data/tree_taxonomy.csv"</span>)</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># number of trees</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(tree_taxo<span class="sc">$</span>Scientific.name)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 118</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>data_trees <span class="ot">&lt;-</span> <span class="fu">filter</span>(raw_data, VärdSciName <span class="sc">%in%</span> tree_taxo<span class="sc">$</span>Scientific.name)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># number of attackers by type of interaction </span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(data_trees<span class="sc">$</span>Nyttjande) <span class="sc">%&gt;%</span> <span class="fu">sort</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>data_trees <span class="ot">&lt;-</span> <span class="fu">filter</span>(raw_data, VärdSciName <span class="sc">%in%</span> tree_taxo<span class="sc">$</span>Species) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="st">"Scientificname"</span>, <span class="st">"VärdSciName"</span>, <span class="st">"Nyttjande"</span>, <span class="st">"blankettnamn"</span>, <span class="st">"tal1"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="st">"parasite"</span> <span class="ot">=</span> <span class="st">"Scientificname"</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>         <span class="st">"host"</span> <span class="ot">=</span> <span class="st">"VärdSciName"</span>, </span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>         <span class="st">"type"</span> <span class="ot">=</span> <span class="st">"Nyttjande"</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>         <span class="st">"tree_part"</span> <span class="ot">=</span> <span class="st">"blankettnamn"</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>         <span class="st">"dependency"</span> <span class="ot">=</span> <span class="st">"tal1"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>()</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>data_trees_spp <span class="ot">&lt;-</span> data_trees <span class="sc">%&gt;%</span> </span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(host <span class="sc">%in%</span> tree_spp)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>data_trees_genus <span class="ot">&lt;-</span> data_trees <span class="sc">%&gt;%</span> </span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">host_genus =</span> <span class="fu">str_extract</span>(host,  <span class="st">"^</span><span class="sc">\\</span><span class="st">w+"</span>), <span class="at">.after =</span> host) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>host) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>()</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co">#setdiff(data_trees_genus$host_genus, tree_genera)</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co">#setdiff(tree_genera, data_trees_genus$host_genus)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co"># number of attackers by type of interaction </span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(data_trees<span class="sc">$</span>type) <span class="sc">%&gt;%</span> <span class="fu">sort</span>(<span class="at">decreasing =</span> T)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
-           Parasitism            Mykorrhiza Underlag/fastsittande 
-                  258                  2035                  3296 
-                 NULL                  Föda             Växtplats 
-                 3635                  4104                  4159 
-              Livsrum 
-                 5600 </code></pre>
+              Livsrum             Växtplats                  Föda 
+                 5578                  4152                  3798 
+Underlag/fastsittande                  NULL            Mykorrhiza 
+                 3290                  2427                  2030 
+           Parasitism 
+                  257 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(data_trees<span class="sc">$</span>tree_part) <span class="sc">%&gt;%</span> <span class="fu">sort</span>(<span class="at">decreasing =</span> T)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+                          Ved och bark                      Växtdelar, ej ved 
+                                 11912                                   4489 
+                             Blad/barr                                 Barken 
+                                   988                                    943 
+                             Dött träd            Finare rötter och rottrådar 
+                                   663                                    573 
+                          Levande träd                             Vedens yta 
+                                   377                                    176 
+                                  Stam                                 Grenar 
+                                   159                                     86 
+                          Veden, inuti                                  Skott 
+                                    84                                     63 
+                              Växtsaft              Mycket grov ved (&gt; 40 cm) 
+                                    56                                     52 
+                               Trädbas                                  Frukt 
+                                    51                                     44 
+                          Under barken                                Knoppar 
+                                    44                                     41 
+                 Grov ved (20 - 40 cm)                      Nyligen dött träd 
+                                    38                                     38 
+ Framskridet nedbrytningsstadium (ved)                                  Förna 
+                                    33                                     32 
+                       Hålighet i träd               Måttligt nedbruten (ved) 
+                                    32                                     29 
+                        Försvagat träd                                    Frö 
+                                    28                                     28 
+                  Blomrelaterade delar                            Stående ved 
+                                    27                                     27 
+                       Gröna växtdelar             Medelgrov ved  (5 - 20 cm) 
+                                    26                                     26 
+                   Mulm i trädhålighet                           Liggande ved 
+                                    24                                     23 
+                 Trädrötter, vedartade                               Gallring 
+                                    22                                     21 
+                           Friskt träd                               Savflöde 
+                                    20                                     18 
+                     Svampar och lavar           Begynnande nedbrytning (ved) 
+                                    18                                     17 
+          Liggande ved med markkontakt                                 Pollen 
+                                    17                                     14 
+                          Trädhålighet                 Starkt nedbruten (ved) 
+                                    14                                     13 
+                   Klen ved (1 - 5 cm)                                 Kottar 
+                                    12                                     11 
+                                Stubbe                                 Nektar 
+                                    11                                     10 
+                      Solexponerad ved             Mycket klen ved (0 - 1 cm) 
+                                     9                                      8 
+                           Döda växter                             Fruktkropp 
+                                     6                                      6 
+                            Fuktig ved                              Högstubbe 
+                                     6                                      6 
+                   Multnande växtdelar                       Antal grova träd 
+                                     6                                      4 
+              Blött (vattenmättat) ved                          Brandpåverkan 
+                                     4                                      4 
+          Plockhuggning eller blädning                          Senvuxet träd 
+                                     4                                      4 
+                               Träddel              Trädskiktets krontäckning 
+                                     4                                      4 
+    Artificiella högstubbar (Substrat)                Röjning av sly o buskar 
+                                     3                                      3 
+                        Taggar, törnen            Tidvis/delvis solbelyst ved 
+                                     3                                      3 
+             Gallbildning som substrat                    Solexponerad planta 
+                                     2                                      2 
+                               Vitröta                           Betad planta 
+                                     2                                      1 
+                          Gångar i ved                                  Grodd 
+                                     1                                      1 
+Hamling, beskärning av träd (trädtukt)                                Kambium 
+                                     1                                      1 
+         Liggande ved utan markkontakt                                 Sporer 
+                                     1                                      1 
+                      Tamdjur i skogen                     Ung växande planta 
+                                     1                                      1 </code></pre>
 </div>
 </div>
-<p>##Parasites</p>
+<section id="parasites" class="level2">
+<h2 class="anchored" data-anchor-id="parasites">Parasites</h2>
+<section id="plot-tree-species-x-parasite-species-network" class="level3">
+<h3 class="anchored" data-anchor-id="plot-tree-species-x-parasite-species-network">Plot tree species x parasite species network</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>data_parasitism <span class="ot">&lt;-</span> <span class="fu">filter</span>(data_trees, Nyttjande <span class="sc">==</span> <span class="st">"Parasitism"</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="st">"Scientificname"</span>, <span class="st">"VärdSciName"</span>, <span class="st">"tal1"</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="st">"parasite"</span> <span class="ot">=</span> <span class="st">"Scientificname"</span>,</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>         <span class="st">"host"</span> <span class="ot">=</span> <span class="st">"VärdSciName"</span>, </span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>         <span class="st">"weight"</span> <span class="ot">=</span> <span class="st">"tal1"</span>)</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_parasitism<span class="sc">$</span>parasite)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>data_para_spp <span class="ot">&lt;-</span> <span class="fu">filter</span>(data_trees_spp, type <span class="sc">==</span> <span class="st">"Parasitism"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># n_distinct(data_para_spp$parasite)</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># n_distinct(data_para_spp$host)</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># nrow(data_para_spp)</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co"># n_distinct(data_para_spp)</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>data_para_spp <span class="sc">%&gt;%</span> </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 159</code></pre>
+<pre><code># A tibble: 19 × 3
+# Groups:   parasite [14]
+   parasite                 host                 n
+   &lt;chr&gt;                    &lt;chr&gt;            &lt;int&gt;
+ 1 Andricus quercuscorticis Quercus petraea      2
+ 2 Andricus quercuscorticis Quercus robur        2
+ 3 Taphrina betulina        Betula pendula       2
+ 4 Taphrina betulina        Betula pubescens     2
+ 5 Taphrina bullata         Pyrus communis       2
+ 6 Taphrina carnea          Betula pubescens     2
+ 7 Taphrina carpini         Carpinus betulus     2
+ 8 Taphrina deformans       Prunus persica       2
+ 9 Taphrina epiphylla       Alnus incana         2
+10 Taphrina johansonii      Populus tremula      2
+11 Taphrina padi            Prunus padus         2
+12 Taphrina pruni           Prunus domestica     2
+13 Taphrina rhizophora      Populus alba         2
+14 Taphrina tosquinetii     Alnus glutinosa      2
+15 Taphrina wiesneri        Prunus avium         2
+16 Viscum album             Acer platanoides     2
+17 Viscum album             Malus domestica      2
+18 Viscum album             Sorbus aucuparia     2
+19 Viscum album             Tilia cordata        2</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_parasitism<span class="sc">$</span>host)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 63</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(data_parasitism)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 258</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_parasitism)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 212</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>data_parasitism <span class="sc">%&gt;%</span> </span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host, weight) <span class="sc">%&gt;%</span> </span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 44</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>data_parasitism <span class="sc">%&gt;%</span> </span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host) <span class="sc">%&gt;%</span> </span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>[1] 44</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>raw_data <span class="sc">%&gt;%</span> </span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Scientificname <span class="sc">==</span> <span class="st">"Biorhiza pallida"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>     idnr  taxon Commonname   Scientificname    Family OrganismGroup faktor
-1 3293919 252312       NULL Biorhiza pallida Cynipidae       Steklar   1173
-2 3809741 252312       NULL Biorhiza pallida Cynipidae       Steklar   1165
-3 3809740 252312       NULL Biorhiza pallida Cynipidae       Steklar   1142
-4 4269039 252312       NULL Biorhiza pallida Cynipidae       Steklar   1183
-           blankettnamn tal1  Nyttjande    host VärdSciName VärdCommon
-1               Knoppar    2 Parasitism 1006232     Quercus       ekar
-2          Ved och bark    2 Parasitism 1006232     Quercus       ekar
-3     Växtdelar, ej ved    2 Parasitism 1006232     Quercus       ekar
-4 Trädrötter, vedartade    2 Parasitism 1006232     Quercus       ekar</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>raw_data <span class="sc">%&gt;%</span> </span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Scientificname <span class="sc">==</span> <span class="st">"Andricus quercuscorticis"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>     idnr  taxon Commonname           Scientificname    Family OrganismGroup
-1 4269656 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-2 4269658 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-3 4269657 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-4 4269655 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-5 4269654 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-6 4269652 252295       NULL Andricus quercuscorticis Cynipidae       Steklar
-  faktor blankettnamn tal1  Nyttjande    host     VärdSciName VärdCommon
-1   1176       Grenar    2 Parasitism  221405 Quercus petraea     bergek
-2   1173      Knoppar    2 Parasitism  221405 Quercus petraea     bergek
-3   1173      Knoppar    2 Parasitism  221406   Quercus robur    skogsek
-4   1176       Grenar    2 Parasitism  221406   Quercus robur    skogsek
-5   1173      Knoppar    2 Parasitism 1006232         Quercus       ekar
-6   1176       Grenar    2 Parasitism 1006232         Quercus       ekar</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>data_parasitism <span class="ot">&lt;-</span> <span class="fu">unique</span>(data_parasitism)</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>duplicates <span class="ot">&lt;-</span> data_parasitism <span class="sc">%&gt;%</span> </span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host) <span class="sc">%&gt;%</span> </span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)</span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="co"># this interaction is recorded as both 1 and 2</span></span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>raw_data <span class="sc">%&gt;%</span> </span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Scientificname <span class="sc">==</span> <span class="st">"Gymnosporangium clavariiforme"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>     idnr  taxon   Commonname                Scientificname       Family
-1 4243642 267000 hagtornsrost Gymnosporangium clavariiforme Pucciniaceae
-2 4243627 267000 hagtornsrost Gymnosporangium clavariiforme Pucciniaceae
-3 4243639 267000 hagtornsrost Gymnosporangium clavariiforme Pucciniaceae
-4 4243643 267000 hagtornsrost Gymnosporangium clavariiforme Pucciniaceae
-  OrganismGroup faktor blankettnamn tal1  Nyttjande    host        VärdSciName
-1          NULL   1146        Frukt    1 Parasitism 1005953          Crataegus
-2          NULL   1177         Stam    2 Parasitism  222146 Juniperus communis
-3          NULL   1176       Grenar    2 Parasitism 1005953          Crataegus
-4          NULL   1150    Blad/barr    2 Parasitism 1005953          Crataegus
-  VärdCommon
-1  hagtornar
-2         en
-3  hagtornar
-4  hagtornar</code></pre>
-</div>
-<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>data_parasitism <span class="ot">&lt;-</span> data_parasitism[<span class="sc">-</span><span class="fu">which</span>(data_parasitism<span class="sc">$</span>parasite <span class="sc">==</span> duplicates<span class="sc">$</span>parasite <span class="sc">&amp;</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>                                         data_parasitism<span class="sc">$</span>host <span class="sc">==</span> duplicates<span class="sc">$</span>host <span class="sc">&amp;</span></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>                                         data_parasitism<span class="sc">$</span>weight <span class="sc">==</span> <span class="dv">1</span>),]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<section id="plot-network" class="level1">
-<h1>Plot network</h1>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with ggraph</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>nodes_para <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">name =</span> <span class="fu">c</span>(<span class="fu">unique</span>(data_parasitism<span class="sc">$</span>parasite), <span class="fu">unique</span>(data_parasitism<span class="sc">$</span>host)),</span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>                         <span class="at">type =</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">"parasite"</span>,<span class="fu">n_distinct</span>(data_parasitism<span class="sc">$</span>parasite)), </span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>                                  <span class="fu">rep</span>(<span class="st">"host"</span>,<span class="fu">n_distinct</span>(data_parasitism<span class="sc">$</span>host))))</span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>parasit_graph <span class="ot">&lt;-</span> <span class="fu">tbl_graph</span>(<span class="at">nodes =</span> nodes_para, <span class="at">edges =</span> data_parasitism)</span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggraph</span>(parasit_graph, <span class="at">layout =</span> <span class="st">"kk"</span>) <span class="sc">+</span> </span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_edge_link</span>(<span class="fu">aes</span>(<span class="at">edge_width =</span> weight), <span class="at">color =</span> <span class="st">"grey30"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span> </span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_point</span>(<span class="fu">aes</span>(<span class="at">shape =</span> type, <span class="at">color =</span> type), <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"chartreuse3"</span>,<span class="st">"deepskyblue3"</span>)) <span class="sc">+</span></span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_edge_width</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.7</span>,<span class="fl">1.4</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output-display">
-<p><img src="SBDI_tree_nets_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid" width="672"></p>
-</div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># remove interactions that are recorded as both 1 and 2</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>duplicates_para <span class="ot">&lt;-</span> data_para_spp <span class="sc">%&gt;%</span> </span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>tree_part) <span class="sc">%&gt;%</span> </span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host) <span class="sc">%&gt;%</span> </span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co"># there are none, just different tree parts</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>data_para_spp_simple <span class="ot">&lt;-</span> data_para_spp <span class="sc">%&gt;%</span> </span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>tree_part) <span class="sc">%&gt;%</span> </span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with bipartite</span></span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>adjm_parasitism <span class="ot">&lt;-</span> <span class="fu">frame2webs</span>(<span class="fu">mutate</span>(data_parasitism, <span class="at">webID =</span> <span class="dv">1</span>), <span class="at">varnames =</span> <span class="fu">c</span>(<span class="st">"host"</span>,<span class="st">"parasite"</span>, <span class="st">"webID"</span>, <span class="st">"weight"</span>))[[<span class="dv">1</span>]]</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plotweb</span>(adjm_parasitism, <span class="at">text.rot =</span> <span class="dv">90</span>, <span class="at">y.lim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with ggraph</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>nodes_para_spp <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">name =</span> <span class="fu">c</span>(<span class="fu">unique</span>(data_para_spp_simple<span class="sc">$</span>parasite), <span class="fu">unique</span>(data_para_spp_simple<span class="sc">$</span>host)),</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>                         <span class="at">type =</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">"parasite"</span>,<span class="fu">n_distinct</span>(data_para_spp_simple<span class="sc">$</span>parasite)), </span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>                                  <span class="fu">rep</span>(<span class="st">"host"</span>,<span class="fu">n_distinct</span>(data_para_spp_simple<span class="sc">$</span>host))))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>para_spp_graph <span class="ot">&lt;-</span> <span class="fu">tbl_graph</span>(<span class="at">nodes =</span> nodes_para_spp, <span class="at">edges =</span> data_para_spp_simple)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggraph</span>(para_spp_graph, <span class="at">layout =</span> <span class="st">"kk"</span>) <span class="sc">+</span> </span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_edge_link</span>(<span class="fu">aes</span>(<span class="at">edge_width =</span> dependency), <span class="at">color =</span> <span class="st">"grey50"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span> </span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_point</span>(<span class="fu">aes</span>(<span class="at">shape =</span> type, <span class="at">color =</span> type), <span class="at">size =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> name), <span class="at">repel =</span> T, <span class="at">size =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"chartreuse3"</span>,<span class="st">"deepskyblue3"</span>)) <span class="sc">+</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_shape_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"square"</span>, <span class="st">"circle"</span>)) <span class="sc">+</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_edge_width</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.7</span>,<span class="fl">1.4</span>)) <span class="sc">+</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_graph</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <p><img src="SBDI_tree_nets_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid" width="672"></p>
 </div>
-<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>mod_para <span class="ot">&lt;-</span> <span class="fu">computeModules</span>(adjm_parasitism)</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plotModuleWeb</span>(mod_para)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggraph</span>(para_spp_graph, <span class="at">layout =</span> <span class="st">"auto"</span>) <span class="sc">+</span> </span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_edge_link</span>(<span class="fu">aes</span>(<span class="at">edge_width =</span> dependency), <span class="at">color =</span> <span class="st">"grey50"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span> </span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_point</span>(<span class="fu">aes</span>(<span class="at">shape =</span> type, <span class="at">color =</span> type), <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"chartreuse3"</span>,<span class="st">"deepskyblue3"</span>)) <span class="sc">+</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_shape_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"square"</span>, <span class="st">"circle"</span>)) <span class="sc">+</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_edge_width</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.7</span>,<span class="fl">1.4</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with bipartite</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>adjm_para_spp <span class="ot">&lt;-</span> <span class="fu">frame2webs</span>(<span class="fu">mutate</span>(data_para_spp_simple, <span class="at">webID =</span> <span class="dv">1</span>), <span class="at">varnames =</span> <span class="fu">c</span>(<span class="st">"host"</span>,<span class="st">"parasite"</span>, <span class="st">"type"</span>, <span class="st">"dependency"</span>))[[<span class="dv">1</span>]]</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">#plotweb(adjm_para_spp, text.rot = 90, y.lim = c(0, 2))</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">visweb</span>(adjm_para_spp, <span class="at">type =</span> <span class="st">"diagonal"</span>, <span class="at">labsize =</span> <span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
-<p><img src="SBDI_tree_nets_files/figure-html/unnamed-chunk-6-2.png" class="img-fluid" width="672"></p>
+<p><img src="SBDI_tree_nets_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># modularity</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>mod_para <span class="ot">&lt;-</span> <span class="fu">computeModules</span>(adjm_parasitism)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">plotModuleWeb</span>(mod_para)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="plot-tree-genera-x-parasite-species-network" class="level3">
+<h3 class="anchored" data-anchor-id="plot-tree-genera-x-parasite-species-network">Plot tree genera x parasite species network</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>data_para_gen <span class="ot">&lt;-</span> <span class="fu">filter</span>(data_trees_genus, type <span class="sc">==</span> <span class="st">"Parasitism"</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_para_gen<span class="sc">$</span>parasite)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 159</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_para_gen<span class="sc">$</span>host_genus)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 25</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(data_para_gen)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 234</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">n_distinct</span>(data_para_gen)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 234</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>data_para_gen <span class="sc">%&gt;%</span> </span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host_genus) <span class="sc">%&gt;%</span> </span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 49 × 3
+# Groups:   parasite [44]
+   parasite                 host_genus     n
+   &lt;chr&gt;                    &lt;chr&gt;      &lt;int&gt;
+ 1 Aceria filiformis        Ulmus          2
+ 2 Aculus fockeui           Prunus         2
+ 3 Aculus leionotus         Betula         2
+ 4 Andricus callidoma       Quercus        2
+ 5 Andricus curvator        Quercus        2
+ 6 Andricus fecundatrix     Quercus        2
+ 7 Andricus inflator        Quercus        2
+ 8 Andricus quadrilineatus  Quercus        2
+ 9 Andricus quercuscorticis Quercus        2
+10 Andricus quercusradicis  Quercus        2
+# ℹ 39 more rows</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># remove interactions that are recorded as both 1 and 2</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>duplicates_para <span class="ot">&lt;-</span> data_para_gen <span class="sc">%&gt;%</span> </span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>tree_part) <span class="sc">%&gt;%</span> </span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(parasite, host_genus) <span class="sc">%&gt;%</span> </span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;</span> <span class="dv">1</span>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co"># there are none, just different tree parts</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>data_para_gen_simple <span class="ot">&lt;-</span> data_para_gen <span class="sc">%&gt;%</span> </span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>tree_part) <span class="sc">%&gt;%</span> </span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with ggraph</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>nodes_para_gen <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">name =</span> <span class="fu">c</span>(<span class="fu">unique</span>(data_para_gen_simple<span class="sc">$</span>parasite), <span class="fu">unique</span>(data_para_gen_simple<span class="sc">$</span>host_genus)),</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>                             <span class="at">type =</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">"parasite"</span>,<span class="fu">n_distinct</span>(data_para_gen_simple<span class="sc">$</span>parasite)), </span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>                                      <span class="fu">rep</span>(<span class="st">"host"</span>,<span class="fu">n_distinct</span>(data_para_gen_simple<span class="sc">$</span>host_genus))))</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>para_gen_graph <span class="ot">&lt;-</span> <span class="fu">tbl_graph</span>(<span class="at">nodes =</span> nodes_para_gen, <span class="at">edges =</span> data_para_gen_simple)</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="fu">ggraph</span>(para_gen_graph, <span class="at">layout =</span> <span class="st">"kk"</span>) <span class="sc">+</span> </span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_edge_link</span>(<span class="fu">aes</span>(<span class="at">edge_width =</span> dependency), <span class="at">color =</span> <span class="st">"grey50"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span> </span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_point</span>(<span class="fu">aes</span>(<span class="at">shape =</span> type, <span class="at">color =</span> type), <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> name), <span class="at">repel =</span> T, <span class="at">size =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"chartreuse3"</span>,<span class="st">"deepskyblue3"</span>)) <span class="sc">+</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_shape_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"square"</span>, <span class="st">"circle"</span>)) <span class="sc">+</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_edge_width</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.7</span>,<span class="fl">1.4</span>)) <span class="sc">+</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_graph</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="SBDI_tree_nets_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggraph</span>(para_gen_graph, <span class="at">layout =</span> <span class="st">"sugiyama"</span>) <span class="sc">+</span> </span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_edge_link</span>(<span class="fu">aes</span>(<span class="at">edge_width =</span> dependency), <span class="at">color =</span> <span class="st">"grey50"</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span> </span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_node_point</span>(<span class="fu">aes</span>(<span class="at">shape =</span> type, <span class="at">color =</span> type), <span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">#geom_node_text(aes(label = name), angle = 90, hjust = 1) +</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"chartreuse3"</span>,<span class="st">"deepskyblue3"</span>)) <span class="sc">+</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_shape_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"square"</span>, <span class="st">"circle"</span>)) <span class="sc">+</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_edge_width</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="fl">0.7</span>,<span class="fl">1.4</span>)) <span class="sc">+</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_graph</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># with bipartite</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>adjm_para_gen <span class="ot">&lt;-</span> <span class="fu">frame2webs</span>(<span class="fu">mutate</span>(data_para_gen_simple, <span class="at">webID =</span> <span class="dv">1</span>), <span class="at">varnames =</span> <span class="fu">c</span>(<span class="st">"host_genus"</span>,<span class="st">"parasite"</span>, <span class="st">"type"</span>, <span class="st">"dependency"</span>))[[<span class="dv">1</span>]]</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">#plotweb(adjm_para_gen, text.rot = 90, y.lim = c(0, 2))</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co">#visweb(adjm_para_gen, type = "diagonal", labsize = 4)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<!-- ## Herbivores -->
+<!-- ### Species -->
+<!-- ```{r} -->
+<!-- data_herbivory <- filter(data_trees, Nyttjande == "Föda") %>% -->
+<!--   select("Scientificname", "VärdSciName", "tal1") %>% -->
+<!--   rename("herbivore" = "Scientificname", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "weight" = "tal1") -->
+<!-- n_distinct(data_herbivory$herbivore) -->
+<!-- n_distinct(data_herbivory$host) -->
+<!-- nrow(data_herbivory) -->
+<!-- n_distinct(data_herbivory) -->
+<!-- duplicates_herb <- data_herbivory %>% -->
+<!--   group_by(herbivore, host, weight) %>% -->
+<!--   summarise(n = n()) %>% -->
+<!--   filter(n > 1) -->
+<!-- nrow(duplicates_herb) -->
+<!-- raw_data %>% -->
+<!--   filter(Scientificname == "Aleurocystidiellum disciforme", -->
+<!--          Nyttjande == "Föda") -->
+<!-- raw_data %>% -->
+<!--   filter(Scientificname == "Caloptilia cuculipennella", -->
+<!--          Nyttjande == "Föda") -->
+<!-- data_herbivory <- unique(data_herbivory) -->
+<!-- duplicates_herb <- data_herbivory %>% -->
+<!--   group_by(herbivore, host) %>% -->
+<!--   summarise(n = n()) %>% -->
+<!--   filter(n > 1) -->
+<!-- View(duplicates_herb) -->
+<!-- data_herbivory <- data_herbivory[-which(data_herbivory$herbivore == duplicates_herb$herbivore & -->
+<!--                                         data_herbivory$host == duplicates_herb$host & -->
+<!--                                         data_herbivory$weight == 1),] -->
+<!-- to_remove <- c() -->
+<!-- for(i in 1:nrow(duplicates_herb)) { -->
+<!--   row <- which(data_herbivory$herbivore == duplicates_herb$herbivore[i] & -->
+<!--                               data_herbivory$host == duplicates_herb$host[i] & -->
+<!--                               data_herbivory$weight == 1) -->
+<!--   to_remove <- c(to_remove, row) -->
+<!-- } -->
+<!-- data_herbivory <- data_herbivory[-to_remove,] -->
+<!-- nrow(data_herbivory) == n_distinct(data_herbivory) -->
+<!-- ``` -->
+<!-- # Plot trees x herbivore species network -->
+<!-- ```{r} -->
+<!-- # with ggraph -->
+<!-- nodes_herb <- data.frame(name = c(unique(data_herbivory$herbivore), unique(data_herbivory$host)), -->
+<!--                          type = c(rep("herbivore",n_distinct(data_herbivory$herbivore)), -->
+<!--                                   rep("host",n_distinct(data_herbivory$host)))) -->
+<!-- herb_graph <- tbl_graph(nodes = nodes_herb, edges = data_herbivory) -->
+<!-- ggraph(herb_graph, layout = "kk") + -->
+<!--   geom_edge_link(aes(edge_width = weight), color = "grey30", alpha = 0.8) + -->
+<!--   geom_node_point(aes(shape = type, color = type), size = 2) + -->
+<!--   scale_color_manual(values = c("deepskyblue3","chartreuse3")) + -->
+<!--   scale_edge_width(range = c(0.5,1)) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- # with bipartite -->
+<!-- adjm_herb <- frame2webs(mutate(data_herbivory, webID = 1), varnames = c("host","herbivore", "webID", "weight"))[[1]] -->
+<!-- #plotweb(adjm_herb, text.rot = 90, y.lim = c(0, 2), labsize = 0.7) -->
+<!-- #visweb(adjm_herb, prednames = F, preynames = F) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- #| eval: false -->
+<!-- # modularity -->
+<!-- mod_herb <- computeModules(adjm_herb) -->
+<!-- plotModuleWeb(mod_herb, displayBlabels = F, labsize = 0.4) -->
+<!-- ``` -->
+<!-- ## Families -->
+<!-- ```{r} -->
+<!-- data_herb_fam <- filter(data_trees, Nyttjande == "Föda") %>% -->
+<!--   select("Family", "VärdSciName", "tal1") %>% -->
+<!--   rename("herb_fam" = "Family", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "weight" = "tal1") -->
+<!-- n_distinct(data_herb_fam$herb_fam) -->
+<!-- n_distinct(data_herb_fam$host) -->
+<!-- nrow(data_herb_fam) -->
+<!-- n_distinct(data_herb_fam) -->
+<!-- data_herb_fam <- unique(data_herb_fam) -->
+<!-- duplicates_herb_fam <- data_herb_fam %>% -->
+<!--   group_by(herb_fam, host) %>% -->
+<!--   summarise(n = n()) %>% -->
+<!--   filter(n > 1) -->
+<!-- # if there are interaction with weight 1 and 2, keep only 2 -->
+<!-- to_remove_fam <- c() -->
+<!-- for(i in 1:nrow(duplicates_herb_fam)) { -->
+<!--   row <- which(data_herb_fam$herb_fam == duplicates_herb_fam$herb_fam[i] & -->
+<!--                data_herb_fam$host == duplicates_herb_fam$host[i] & -->
+<!--                data_herb_fam$weight == 1) -->
+<!--   to_remove_fam <- c(to_remove_fam, row) -->
+<!-- } -->
+<!-- data_herb_fam <- data_herb_fam[-to_remove_fam,] -->
+<!-- n_distinct(data_herb_fam$herb_fam) -->
+<!-- n_distinct(data_herb_fam$host) -->
+<!-- ``` -->
+<!-- # Plot trees x herbivore families network -->
+<!-- ```{r} -->
+<!-- # with ggraph -->
+<!-- nodes_herb_fam <- data.frame(name = c(unique(data_herb_fam$herb_fam), unique(data_herb_fam$host)), -->
+<!--                              type = c(rep("herb_fam",n_distinct(data_herb_fam$herb_fam)), -->
+<!--                                       rep("host",n_distinct(data_herb_fam$host)))) -->
+<!-- herb_fam_graph <- tbl_graph(nodes = nodes_herb_fam, edges = data_herb_fam) -->
+<!-- ggraph(herb_fam_graph, layout = "auto") + -->
+<!--   geom_edge_link(aes(edge_width = weight), color = "grey30", alpha = 0.8) + -->
+<!--   geom_node_point(aes(shape = type, color = type), size = 3) + -->
+<!--   scale_color_manual(values = c("deepskyblue3","chartreuse3")) + -->
+<!--   scale_edge_width(range = c(0.5,1)) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- # with bipartite -->
+<!-- adjm_herb_fam <- frame2webs(mutate(data_herb_fam, webID = 1), varnames = c("host","herb_fam", "webID", "weight"))[[1]] -->
+<!-- plotweb(adjm_herb_fam, text.rot = 90, y.lim = c(0, 2), labsize = 0.7) -->
+<!-- visweb(adjm_herb_fam, labsize = 4) -->
+<!-- visweb(adjm_herb_fam, labsize = 4, type = "diagonal") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- #| eval: false -->
+<!-- # modularity -->
+<!-- mod_herb_fam <- computeModules(adjm_herb_fam) -->
+<!-- plotModuleWeb(mod_herb_fam, labsize = 0.4) -->
+<!-- ``` -->
+<!-- ## Families weighted by number of species interactions -->
+<!-- ```{r} -->
+<!-- data_herb_spp_fam <- filter(data_trees, Nyttjande == "Föda") %>% -->
+<!--   select("Scientificname", "Family", "VärdSciName") %>% -->
+<!--   rename("herbivore" = "Scientificname", -->
+<!--          "herb_fam" = "Family", -->
+<!--          "host" = "VärdSciName") %>% -->
+<!--   unique() %>% -->
+<!--   group_by(herb_fam, host) %>% -->
+<!--   summarise(n_spp = n()) %>% -->
+<!--   mutate(logn = round(log(n_spp) + 1)) -->
+<!-- ``` -->
+<!-- Plot network with log(number of species that interact) + 1 so that low weight interactions are visible. -->
+<!-- ```{r} -->
+<!-- # with bipartite -->
+<!-- adjm_herb_spp_fam <- frame2webs(mutate(data_herb_spp_fam, webID = 1), varnames = c("host","herb_fam", "webID", "n_spp"))[[1]] -->
+<!-- adjm_herb_spp_fam_log <- frame2webs(mutate(data_herb_spp_fam, webID = 1), varnames = c("host","herb_fam", "webID", "logn"))[[1]] -->
+<!-- #plotweb(adjm_herb_spp_fam_log, text.rot = 90, y.lim = c(0, 2), labsize = 0.7) -->
+<!-- visweb(adjm_herb_spp_fam_log, labsize = 4) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- #| eval: false -->
+<!-- # modularity -->
+<!-- mod_herb_spp_fam <- computeModules(adjm_herb_spp_fam_log) -->
+<!-- plotModuleWeb(mod_herb_spp_fam, labsize = 0.4) -->
+<!-- ``` -->
+<!-- ### Sharing between trees -->
+<!-- ```{r} -->
+<!-- shared_spp <- data_trees %>% -->
+<!--   select("Scientificname", "Family", "VärdSciName", "Nyttjande") %>% -->
+<!--   rename("herbivore" = "Scientificname", -->
+<!--          "herb_fam" = "Family", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "type" = "Nyttjande") %>% -->
+<!--   unique() -->
+<!-- adjm_shared <- frame2webs(shared_spp, varnames = c("host","herbivore", "type")) -->
+<!-- one_mode_shared_parasites <- as.one.mode(adjm_shared$Parasitism, project = "lower") -->
+<!-- image(one_mode_shared_parasites) -->
+<!-- one_mode_shared_herbivores <- as.one.mode(adjm_shared$Föda, project = "lower") -->
+<!-- image(one_mode_shared_herbivores) -->
+<!-- ``` -->
+<!-- # Plot trees x trees -->
+<!-- ```{r} -->
+<!-- # with ggraph -->
+<!-- nodes_herb_shared <- data.frame(name = c(unique(rownames(one_mode_shared_herbivores)))) -->
+<!-- shared_herb_graph <- tbl_graph(nodes = nodes_herb_shared, edges = web2edges(one_mode_shared_herbivores, is.one.mode = TRUE)) -->
+<!-- ggraph(shared_herb_graph, layout = "kk") + -->
+<!--   geom_edge_link(aes(edge_width = edge.weights), color = "grey30", alpha = 0.8) + -->
+<!--   geom_node_point(size = 3) + -->
+<!--   scale_edge_width(range = c(0.5,5)) -->
+<!-- nodes_para_shared <- data.frame(name = c(unique(rownames(one_mode_shared_parasites)))) -->
+<!-- shared_para_graph <- tbl_graph(nodes = nodes_para_shared, edges = web2edges(one_mode_shared_parasites, is.one.mode = TRUE)) -->
+<!-- ggraph(shared_para_graph, layout = "kk") + -->
+<!--   geom_edge_link(aes(edge_width = edge.weights), color = "grey50", alpha = 0.8) + -->
+<!--   geom_node_point(size = 3) + -->
+<!--   geom_node_text(aes(label = name), nudge_y = 0.2) + -->
+<!--   scale_edge_width(range = c(0.5,3)) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- data_coleoptera <- data_herbivory <- filter(data_trees, Nyttjande == "Föda") %>% -->
+<!--   filter(OrganismGroup == "Skalbaggar") %>% -->
+<!--   select("Scientificname", "VärdSciName", "tal1") %>% -->
+<!--   rename("herbivore" = "Scientificname", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "weight" = "tal1") -->
+<!-- data_coleoptera <- unique(data_coleoptera) -->
+<!-- # with bipartite -->
+<!-- adjm_coleo <- frame2webs(mutate(data_coleoptera, webID = 1), varnames = c("host","herbivore", "webID", "weight"))[[1]] -->
+<!-- plotweb(adjm_coleo, text.rot = 90, y.lim = c(0, 2), labsize = 0.7) -->
+<!-- visweb(adjm_coleo, prednames = F, preynames = F, type= "diagonal") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- data_lepi <- data_herbivory <- filter(data_trees, Nyttjande == "Föda") %>% -->
+<!--   filter(OrganismGroup == "Fjärilar") %>% -->
+<!--   select("Scientificname", "VärdSciName", "tal1") %>% -->
+<!--   rename("herbivore" = "Scientificname", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "weight" = "tal1") -->
+<!-- data_lepi <- unique(data_lepi) -->
+<!-- # with bipartite -->
+<!-- adjm_lepi <- frame2webs(mutate(data_lepi, webID = 1), varnames = c("host","herbivore", "webID", "weight"))[[1]] -->
+<!-- plotweb(adjm_lepi, text.rot = 90, y.lim = c(0, 2), labsize = 0.7) -->
+<!-- visweb(adjm_lepi, prednames = F, preynames = F, type= "diagonal") -->
+<!-- ``` -->
+<!-- ### Mycorrhiza -->
+<!-- ```{r} -->
+<!-- data_myco <- filter(data_trees, Nyttjande == "Mykorrhiza") %>% -->
+<!--   select("Scientificname", "VärdSciName", "tal1") %>% -->
+<!--   rename("myco" = "Scientificname", -->
+<!--          "host" = "VärdSciName", -->
+<!--          "weight" = "tal1") -->
+<!-- n_distinct(data_myco$myco) -->
+<!-- n_distinct(data_myco$host) -->
+<!-- nrow(data_myco) -->
+<!-- n_distinct(data_myco) -->
+<!-- data_myco <- unique(data_myco) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- # with bipartite -->
+<!-- adjm_myco <- frame2webs(mutate(data_myco, webID = 1), varnames = c("host","myco", "webID", "weight"))[[1]] -->
+<!-- plotweb(adjm_myco, text.rot = 90, y.lim = c(0, 2), labsize = 0.4) -->
+<!-- visweb(adjm_myco, labsize = 4) -->
+<!-- visweb(adjm_myco, labsize = 4, type = "diagonal") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- filter(data_trees, Nyttjande == "Livsrum") %>% -->
+<!--   sample_n(200) %>% -->
+<!--   View() -->
+<!-- ``` -->
+</section>
+</section>
 </section>
 
 </main>
