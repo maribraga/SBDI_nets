@@ -28,7 +28,7 @@ raw_data <- read.table("data/report_data.txt", sep = "\t", header = T, fileEncod
 
 # check for duplicates
 nrow(raw_data) > n_distinct(raw_data[,c("Scientificname", "VärdSciName", "Nyttjande")])
-````
+```
 
 There are duplicates in the data (seems to be for different parts of the tree). Remove them from data subsets later.
 
@@ -50,7 +50,7 @@ data_trees <- filter(raw_data, VärdSciName %in% tree_taxo$Scientific.name)
 table(data_trees$Nyttjande) %>% sort()
 ```
 
-##Parasites
+### Parasites
 
 ```{r}
 data_parasitism <- filter(data_trees, Nyttjande == "Parasitism") %>% 
@@ -98,7 +98,8 @@ data_parasitism <- data_parasitism[-which(data_parasitism$parasite == duplicates
                                          data_parasitism$weight == 1),]
 ```
 
-# Plot network
+# Plot trees x parasite species network
+
 ```{r}
 # with ggraph
 
@@ -132,7 +133,9 @@ plotModuleWeb(mod_para)
 ```
 
 
-## Herbivores
+### Herbivores
+
+## Species
 
 ```{r}
 data_herbivory <- filter(data_trees, Nyttjande == "Föda") %>% 
@@ -187,7 +190,8 @@ nrow(data_herbivory) == n_distinct(data_herbivory)
 ```
 
 	
-# Plot network
+# Plot trees x herbivore species network
+
 ```{r}
 # with ggraph
 
@@ -219,7 +223,113 @@ plotweb(adjm_herb, text.rot = 90, y.lim = c(0, 2), labsize = 0.7)
 # modularity
 mod_herb <- computeModules(adjm_herb)
 plotModuleWeb(mod_herb, displayBlabels = F, labsize = 0.4)
+
 ```
 
+## Families
+
+```{r}
+data_herb_fam <- filter(data_trees, Nyttjande == "Föda") %>% 
+  select("Family", "VärdSciName", "tal1") %>% 
+  rename("herb_fam" = "Family",
+         "host" = "VärdSciName", 
+         "weight" = "tal1")
+
+n_distinct(data_herb_fam$herb_fam)
+n_distinct(data_herb_fam$host)
+nrow(data_herb_fam)
+n_distinct(data_herb_fam)
+
+data_herb_fam <- unique(data_herb_fam)
+
+duplicates_herb_fam <- data_herb_fam %>% 
+  group_by(herb_fam, host) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 1)
+
+# if there are interaction with weight 1 and 2, keep only 2
+to_remove_fam <- c()
+for(i in 1:nrow(duplicates_herb_fam)) {
+  row <- which(data_herb_fam$herb_fam == duplicates_herb_fam$herb_fam[i] &
+               data_herb_fam$host == duplicates_herb_fam$host[i] &
+               data_herb_fam$weight == 1)
+  to_remove_fam <- c(to_remove_fam, row)
+}
+
+data_herb_fam <- data_herb_fam[-to_remove_fam,]
+n_distinct(data_herb_fam$herb_fam)
+n_distinct(data_herb_fam$host)
+```
+
+# Plot trees x herbivore families network
+
+```{r}
+# with ggraph
+
+nodes_herb_fam <- data.frame(name = c(unique(data_herb_fam$herb_fam), unique(data_herb_fam$host)),
+                             type = c(rep("herb_fam",n_distinct(data_herb_fam$herb_fam)), 
+                                      rep("host",n_distinct(data_herb_fam$host))))
+
+herb_fam_graph <- tbl_graph(nodes = nodes_herb_fam, edges = data_herb_fam)
+
+ggraph(herb_fam_graph, layout = "auto") + 
+  geom_edge_link(aes(edge_width = weight), color = "grey30", alpha = 0.8) + 
+  geom_node_point(aes(shape = type, color = type), size = 3) +
+  scale_color_manual(values = c("deepskyblue3","chartreuse3")) +
+  scale_edge_width(range = c(0.5,1))
+```
+
+```{r}
+# with bipartite
+
+adjm_herb_fam <- frame2webs(mutate(data_herb_fam, webID = 1), varnames = c("host","herb_fam", "webID", "weight"))[[1]]
+
+plotweb(adjm_herb_fam, text.rot = 90, y.lim = c(0, 2), labsize = 0.7)
+
+visweb(adjm_herb_fam, labsize = 4)
+visweb(adjm_herb_fam, labsize = 4, type = "diagonal")
+```
+
+```{r}
+#| eval: false
+# modularity
+mod_herb_fam <- computeModules(adjm_herb_fam)
+plotModuleWeb(mod_herb_fam, labsize = 0.4)
+
+```
+
+## Families weighted by number of species interactions
+
+```{r}
+data_herb_spp_fam <- filter(data_trees, Nyttjande == "Föda") %>% 
+  select("Scientificname", "Family", "VärdSciName") %>% 
+  rename("herbivore" = "Scientificname",
+         "herb_fam" = "Family",
+         "host" = "VärdSciName") %>% 
+  unique() %>% 
+  group_by(herb_fam, host) %>% 
+  summarise(n_spp = n()) %>% 
+  mutate(logn = round(log(n_spp) + 1))
+
+```
+
+Plot network with log(number of species that interact) + 1 so that low weight interactions are visible.
+
+```{r}
+# with bipartite
+adjm_herb_spp_fam <- frame2webs(mutate(data_herb_spp_fam, webID = 1), varnames = c("host","herb_fam", "webID", "n_spp"))[[1]]
+adjm_herb_spp_fam_log <- frame2webs(mutate(data_herb_spp_fam, webID = 1), varnames = c("host","herb_fam", "webID", "logn"))[[1]]
+
+#plotweb(adjm_herb_spp_fam_log, text.rot = 90, y.lim = c(0, 2), labsize = 0.7)
+visweb(adjm_herb_spp_fam_log, labsize = 4)
+```
+
+```{r}
+#| eval: false
+# modularity
+mod_herb_spp_fam <- computeModules(adjm_herb_spp_fam_log)
+plotModuleWeb(mod_herb_spp_fam, labsize = 0.4)
+
+```
 
 
